@@ -63,8 +63,110 @@ def proc_slice_without_RV(mask1, mask5):
         index = np.sqrt((xx1 - xx5[ii])**2 + (yy1 - yy5[ii])**2).argmin()
         seg5[xx5[ii], yy5[ii]] = mask1[xx1[index], yy1[index]]
     return seg5
-
 def get_seg(heart_xyz):
+    sum_slice = np.sum(heart_xyz==1, axis=(0, 1))
+    temp = sum_slice.copy()
+    temp = temp[temp>0]
+    diff = temp[-1] - temp[0]
+
+
+
+    if diff < 0:
+        basal_first = True
+        #check apex
+        apex_index = np.where(sum_slice>0)[0].max()    
+
+    else:
+        basal_first = False
+        apex_index = np.where(sum_slice>0)[0].min()
+
+
+
+    slice_name = np.zeros((heart_xyz.shape[2],))
+
+    for slicen in range(heart_xyz.shape[2]):
+        heart_xy = heart_xyz[..., slicen]
+        #print(np.unique(heart_xy).sum())
+        if np.sum(heart_xy, axis=(0, 1)) > 0:
+            slice_name[slicen] = 11        
+        if np.unique(heart_xy).sum() == 6 and (np.sum(heart_xy==3) > 20):           
+            if get_sweep360(heart_xy):            
+                slice_name[slicen] = 11
+            else:
+                slice_name[slicen] = 1
+        LV = np.sum(heart_xy==1)
+        LVall = LV + np.sum(heart_xy==2)
+        LV_rate = LV/LVall
+        if (apex_index == slicen) and (LV_rate < 0.05):
+            slice_name[slicen] = 4
+    slice_label = slice_name.astype(int).copy()
+    temp_index = (slice_name==1) | (slice_name==11)
+    slice_label[temp_index==True] = get_loc(np.sum(temp_index).astype(int))
+    slice_true = slice_label.copy()
+    slice_label[slice_name==11] = 11
+
+    offset = dict()
+    offset[1] = 0
+    offset[2] = 6
+    offset[3] = 12
+    heart_aha6 = heart_xyz * 0
+    heart_aha4 = heart_xyz * 0
+    heart_aha = heart_xyz * 0
+    slice_label_new = slice_label.copy()
+    for ii in range(slice_label.size):
+        if (slice_label[ii] == 0) or (slice_label[ii] == 11):
+            continue
+
+        if slice_label[ii] == 4:
+            temp = heart_xyz[..., ii].copy()
+            heart_aha[..., ii][temp==2] = 17
+            continue
+
+        seg6 = ahaseg.get_seg(heart_xyz[..., ii].copy(), 6)
+        seg4 = ahaseg.get_seg(heart_xyz[..., ii].copy(), 4)
+
+        #seg6[seg6 > 0] = seg6[seg6 > 0] + offset[slice_label[ii]]
+        if np.sum(seg6) > 0:
+            heart_aha6[..., ii] = seg6
+            heart_aha4[..., ii] = seg4
+        else:
+            slice_label_new[ii] = 11
+
+    while np.any(slice_label_new==11):
+        #print(slice_label_new)
+        for ii in np.where(slice_label_new==11)[0]:
+            left = max(ii-1, 0)
+            right = min(ii+1, slice_label_new.size-1)
+            
+            for test_index in [left, right]:
+                #print(left, right)
+                if slice_label_new[test_index] in [1, 2, 3]:
+                    seg6 = proc_slice_without_RV(heart_aha6[..., test_index], heart_xyz[..., ii].copy())
+                    seg4 = proc_slice_without_RV(heart_aha4[..., test_index], heart_xyz[..., ii].copy())
+                    slice_label_new[ii] = slice_true[ii]
+                    heart_aha6[..., ii] = seg6
+                    heart_aha4[..., ii] = seg4
+     
+                
+    for ii in range(slice_true.size):
+        label = slice_true[ii]
+        if label == 1:
+
+            heart_aha[..., ii] = heart_aha6[..., ii]
+        elif label == 2:
+            seg = heart_aha6[..., ii]
+            seg[seg > 0] = seg[seg > 0] + 6
+            heart_aha[..., ii] = seg
+        elif label == 3:
+            seg = heart_aha4[..., ii]
+            seg[seg > 0] = seg[seg > 0] + 12
+            heart_aha[..., ii] = seg
+        
+    heart_aha[heart_xyz==1] = 18
+    heart_aha[heart_xyz==3] = 19
+    return heart_aha
+
+def get_seg0(heart_xyz):
     sum_slice = np.sum(heart_xyz==1, axis=(0, 1))
     temp = sum_slice.copy()
     temp = temp[temp>0]
