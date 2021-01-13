@@ -69,16 +69,16 @@ def get_seg(heart_xyz):
     temp = temp[temp>0]
     diff = temp[-1] - temp[0]
 
-
+    sum_slice_all = np.sum(heart_xyz, axis=(0, 1))
 
     if diff < 0:
         basal_first = True
         #check apex
-        apex_index = np.where(sum_slice>0)[0].max()    
+        apex_index = np.where(sum_slice_all>0)[0].max()    
 
     else:
         basal_first = False
-        apex_index = np.where(sum_slice>0)[0].min()
+        apex_index = np.where(sum_slice_all>0)[0].min()
 
 
 
