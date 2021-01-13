@@ -134,7 +134,7 @@ def get_seg(heart_xyz):
             slice_label_new[ii] = 11
 
     while np.any(slice_label_new==11):
-        #print(slice_label_new)
+        print(slice_label_new)
         for ii in np.where(slice_label_new==11)[0]:
             left = max(ii-1, 0)
             right = min(ii+1, slice_label_new.size-1)
