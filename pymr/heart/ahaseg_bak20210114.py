@@ -40,26 +40,6 @@ def degree_calcu(UP, DN, seg_num):
 
     return anglelist.astype(int)
 
-
-def degree_calcu_new(mid, seg_num):
-    anglelist = np.zeros(seg_num)
-    if seg_num == 4:
-        anglelist[0] = mid - 45 - 90
-        anglelist[1] = mid - 45
-        anglelist[2] = mid + 45
-        anglelist[3] = mid + 45 + 90
-
-    if seg_num == 6:
-        anglelist[0] = mid - 120
-        anglelist[1] = mid - 60
-        anglelist[2] = mid
-        anglelist[3] = mid + 60
-        anglelist[4] = mid + 120
-        anglelist[5] = mid + 180
-    anglelist = (anglelist + 360) % 360
-
-    return anglelist.astype(int)
-
 def circular_sector(r_range, theta_range, LV_center):
     cx, cy = LV_center
     theta = theta_range/180*np.pi
@@ -111,12 +91,49 @@ def get_theta(sweep360):
     #print(uprank, downrank)
     phase = np.deg2rad(np.array([uprank, downrank]))
     uprank, downrank = np.rad2deg(np.unwrap(phase)).astype(np.int) - 360
-    
-
+        
     #print(uprank, downrank)
     #print('=' * 20)
     return uprank, downrank
 
+def get_thetaX(sweep360):
+    from scipy.optimize import curve_fit
+    from scipy.signal import medfilt
+    sumar = np.array(sweep360)
+    x = np.arange(sumar.size)
+    y = sumar
+    maxv = np.argmax(y)
+    y = medfilt(y)
+
+    def gauss(x, *p):
+        A, mu, sigma = p
+        return A*np.exp(-(x-mu)**2/(2.*sigma**2))
+
+    def fit(x, y):
+        p0 = [np.max(y), np.argmax(y)+x[0], 1.]
+        try:
+            coeff, var_matrix = curve_fit(gauss, x, y, p0=p0)
+            A, mu, sigma = coeff
+        except:
+            mu = 0
+            sigma = 0
+        return mu, sigma
+
+    mu, sigma = fit(x[:maxv], y[:maxv])
+    uprank1 = mu - sigma*2.5
+    mu, sigma = fit(x[maxv:], y[maxv:])
+    downrank1 = mu + sigma*2.5
+    if downrank1 == 0:
+        downrank1 = 360
+
+    uprank2 = np.nonzero(y > 5)[0][0]
+    downrank2 = np.nonzero(y > 5)[0][-1]
+    uprank = max(uprank1, uprank2)
+    downrank = min(downrank1, downrank2)
+    
+    print(int(uprank), int(downrank))
+
+    return int(uprank), int(downrank)
 
 def get_sweep360(LVwmask, RVbmask):
 
@@ -151,14 +168,11 @@ def get_angle(heart_mask, nseg=4):
     LVbmask, LVwmask, RVbmask = get_heartmask(heart_mask)
     #import time
     #t = time.time()
-    sweep360 = get_sweep360(LVbmask, RVbmask)
+    sweep360 = get_sweep360(LVwmask, RVbmask)
     UP, DN = get_theta(sweep360)
-    #anglelist = degree_calcu(UP, DN, nseg) old
-    j = (-1)**0.5
-    pi = np.pi
-    mid_angle = np.angle(np.exp(j*UP/180*pi) + np.exp(j*DN/180*pi))/pi*180
-    anglelist = degree_calcu_new(mid_angle, nseg)
-      
+    anglelist = degree_calcu(UP, DN, nseg)
+    
+    
     #step 2: calculate mask360, 360 points with AHA labels
 
     angles2 = np.append(anglelist, anglelist[0])
@@ -172,7 +186,7 @@ def get_angle(heart_mask, nseg=4):
         mask360[temp] = ii + 1
         
     #step 3: calculating AHA sector
-    LV_center = ndimage.center_of_mass(LVbmask)
+    LV_center = ndimage.center_of_mass(LVwmask)
     AHA_sector = LVwmask * 0
     rr = np.min(np.abs(LVwmask.shape-np.array(LV_center))).astype(np.int)
 

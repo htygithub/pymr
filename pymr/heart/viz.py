@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def montage(X, cmap='viridis', fname=None, display=True):
+def montage(X, cmap='viridis', fname=None, display=True, interpolation='nearest', vmin=None, vmax=None):
     m, n, count = X.shape    
     mm = int(np.ceil(np.sqrt(count)))
     nn = mm
@@ -22,7 +22,7 @@ def montage(X, cmap='viridis', fname=None, display=True):
     if display == False:
         plt.ioff()
     plt.figure(figsize=(10, 10))
-    plt.imshow(M, cmap=cmap)
+    plt.imshow(M, cmap=cmap, interpolation=interpolation, vmin=vmin, vmax=vmax)
     plt.axis('off')
     if fname is not None:
         plt.savefig(fname)
